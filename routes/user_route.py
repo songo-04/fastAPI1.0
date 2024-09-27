@@ -37,6 +37,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return jwt.encode(to_encode, os.getenv("SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))
 
 
+
 #create user
 @user_root.post("/register")
 async def create_user(doc:UserModel):
