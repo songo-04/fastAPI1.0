@@ -12,6 +12,7 @@ client = MongoClient(os.getenv("uri_offline"), server_api=ServerApi('1'))
 db=client.fastAPIDb
 user_collection = db['users']
 contact_collection = db['contacts']
+task_collection = db['tasks']
 # Send a ping to confirm a successful connection
 try:
     client.admin.command('ping')

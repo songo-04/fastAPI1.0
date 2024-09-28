@@ -1,4 +1,4 @@
-from fastapi import APIRouter ,Depends,Response,Request
+from fastapi import APIRouter ,Depends,Response,Request,HTTPException,status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from bson import ObjectId
 from models.user_model import UserModel,UserModelUpdated,UserInDB
@@ -6,6 +6,7 @@ from config.config import user_collection
 from serializers.user_serialize import DecodeUsers,DecodeUser
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
+from bson import ObjectId
 import jwt
 from dotenv import load_dotenv
 import os
@@ -57,7 +58,7 @@ async def login(form_data:UserModel,response:Response):
             "message":"non register"
         }
     access_token_expire = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")))
-    access_token  = create_access_token(data={"sub":is_user_exist['user_name']},expires_delta=access_token_expire)
+    access_token  = create_access_token(data={"userId":str(is_user_exist['_id']),"sub":is_user_exist['user_name']},expires_delta=access_token_expire)
     response.set_cookie(key="access_token",value=access_token,httponly=True)
     return {
         "message":"login successfully"
@@ -66,7 +67,8 @@ async def login(form_data:UserModel,response:Response):
 @user_root.get("/me")
 async def current_user(request:Request,is_auth:dict=Depends(isAuthenticate)):
     user_name = is_auth['sub']
-    me = user_collection.find_one({"user_name":user_name})
+    userId = is_auth['userId']
+    me = user_collection.find_one({"_id":ObjectId(userId)})
     return DecodeUser(me)
 
 @user_root.get("/")
@@ -90,21 +92,38 @@ async def get_user_by_id(_id:str):
     }
 
 @user_root.patch("/{_id}")
-async def update_user(_id:str,data:UserModelUpdated):
+async def update_user(_id:str,data:UserModelUpdated,is_auth: dict=Depends(isAuthenticate)):
+    userId = is_auth['userId']
     is_user_exist = user_collection.find_one({"_id":ObjectId(_id)})
-    if(is_user_exist is None):
-        return {"message":"user is found"}
+    
+    if (is_user_exist is None):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,detail='user not found'
+        )
+    if(str(is_user_exist['_id']) != str(userId)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,detail='not authorized'
+        )
     req = dict(data.model_dump(exclude_unset=True))
     user_collection.find_one_and_update({"_id":ObjectId(_id)},{"$set":req})
     return {
-        "message":"user id {_id} updated"
+        "message":"user id {_id} updated",
+        "status":status.HTTP_200_OK
     }
 
 @user_root.delete("/{_id}")
-async def delete_user(_id:str):
+async def delete_user(_id:str,is_auth:dict=Depends(isAuthenticate)):
+    userId = is_auth['userId']
     is_user_exist = user_collection.find_one({"_id":ObjectId(_id)})
+    
     if(is_user_exist is None):
-        return {"message":"user is found"}
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,detail='user not found'
+        )
+    if(str(is_user_exist['_id']) != str(userId)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,detail='not authorized'
+        )
     user_collection.find_one_and_delete({"_id":ObjectId(_id)})
     return {
         "message":"{_id} is deleted successfully"

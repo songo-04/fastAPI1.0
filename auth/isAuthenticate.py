@@ -19,7 +19,7 @@ async def isAuthenticate(request:Request):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,detail='invalid token'
             )
-        
+        print(user_info)
         return user_info
     except jwt.PyJWTError:
         raise HTTPException(
